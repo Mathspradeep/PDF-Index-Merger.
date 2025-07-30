@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Merger with Index Page</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .file-list-item {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        details > summary {
+            list-style: none;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+        details[open] .arrow {
+            transform: rotate(90deg);
+        }
+        .detail-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-lg p-6 md:p-8">
+        
+        <div class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">PDF Index & Merger</h1>
+            <p class="mt-2 text-gray-600">Create a master PDF with a cover page and clickable table of contents.</p>
+        </div>
+
+        <!-- Cover Page Details Section -->
+        <details id="cover-page-section" class="mb-6 border rounded-md" open>
+            <summary class="p-4 cursor-pointer flex justify-between items-center font-semibold text-gray-700">
+                <span>1. Cover Page Details (Optional)</span>
+                <svg class="w-5 h-5 arrow transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </summary>
+            <div class="p-4 border-t border-gray-200 space-y-4">
+                <input type="text" id="cover-title" placeholder="Title (e.g., Quarterly Report)" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description Details</label>
+                    <div id="description-container" class="space-y-2">
+                        <!-- Dynamic fields will be inserted here -->
+                    </div>
+                    <button id="add-detail-btn" class="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">+ Add Detail</button>
+                </div>
+
+                <input type="text" id="cover-author" placeholder="Author / Department (e.g., Finance Department)" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                
+                <div>
+                    <label for="cover-image" class="text-sm font-medium text-gray-700">Header Image</label>
+                    <input type="file" id="cover-image" accept="image/png, image/jpeg" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+
+                <div class="flex items-center">
+                    <input id="include-date" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="include-date" class="ml-2 block text-sm text-gray-900">Include current date on cover page</label>
+                </div>
+            </div>
+        </details>
+
+        <!-- File Upload Area -->
+        <div id="upload-area">
+            <h2 class="text-lg font-semibold text-gray-700 mb-2">2. Upload PDF Files</h2>
+            <label for="pdf-upload" class="flex justify-center w-full h-48 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-md appearance-none cursor-pointer hover:border-gray-400 focus:outline-none">
+                <span class="flex items-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span class="font-medium text-gray-600">
+                        Drop PDF files here or
+                        <span class="text-blue-600 underline">browse to add more</span>
+                    </span>
+                </span>
+                <input type="file" id="pdf-upload" name="files" multiple accept=".pdf" class="hidden">
+            </label>
+        </div>
+
+        <!-- Selected Files List -->
+        <div id="file-list-container" class="mt-6 hidden">
+            <div class="flex justify-between items-center mb-2">
+                 <h2 class="text-lg font-semibold text-gray-700">Selected Files:</h2>
+                 <button id="clear-all-btn" class="text-sm text-red-500 hover:text-red-700 font-medium">Clear All</button>
+            </div>
+            <ul id="file-list" class="space-y-2"></ul>
+        </div>
+        
+        <!-- Action Buttons & Status -->
+        <div class="mt-8 text-center">
+            <button id="merge-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                Generate Merged PDF
+            </button>
+            <div id="status" class="mt-4 text-gray-600 h-6"></div>
+        </div>
+
+        <!-- Download Link -->
+        <div id="download-container" class="mt-6 hidden text-center">
+             <a id="download-link" class="w-full inline-block bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors duration-300" download="merged-document.pdf">
+                 Download Your PDF
+             </a>
+        </div>
+    </div>
+
+   <script>
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    // DOM elements
+    const uploadInput = document.getElementById('pdf-upload');
+    const uploadArea = document.getElementById('upload-area');
+    const fileListContainer = document.getElementById('file-list-container');
+    const fileList = document.getElementById('file-list');
+    const mergeBtn = document.getElementById('merge-btn');
+    const statusDiv = document.getElementById('status');
+    const downloadContainer = document.getElementById('download-container');
+    const downloadLink = document.getElementById('download-link');
+    const clearAllBtn = document.getElementById('clear-all-btn');
+    
+    // Cover page DOM elements
+    const coverTitleInput = document.getElementById('cover-title');
+    const coverAuthorInput = document.getElementById('cover-author');
+    const coverImageInput = document.getElementById('cover-image');
+    const includeDateCheckbox = document.getElementById('include-date');
+    const descriptionContainer = document.getElementById('description-container');
+    const addDetailBtn = document.getElementById('add-detail-btn');
+
+    let uploadedFiles = [];
+    
+    const addDescriptionField = () => {
+        const detailWrapper = document.createElement('div');
+        detailWrapper.className = 'detail-item';
+        const newInput = document.createElement('input');
+        newInput.type = 'text';
+        newInput.placeholder = 'e.g., Subject: Advanced Topics';
+        newInput.className = 'description-detail-input w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500';
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
+        removeBtn.className = 'text-gray-400 hover:text-red-500';
+        removeBtn.onclick = () => detailWrapper.remove();
+
+        detailWrapper.appendChild(newInput);
+        detailWrapper.appendChild(removeBtn);
+        descriptionContainer.appendChild(detailWrapper);
+    };
+    addDetailBtn.addEventListener('click', addDescriptionField);
+    addDescriptionField(); // Start with one detail field by default
+
+    function addFiles(files) {
+        const newFiles = Array.from(files);
+        let filesAdded = 0;
+        newFiles.forEach(file => {
+            const isDuplicate = uploadedFiles.some(existingFile => 
+                existingFile.name === file.name && existingFile.size === file.size
+            );
+            if (!isDuplicate && file.type === 'application/pdf') {
+                uploadedFiles.push(file);
+                filesAdded++;
+            }
+        });
+        if(filesAdded > 0) {
+            updateFileList();
+        }
+    }
+
+    uploadInput.addEventListener('change', (event) => {
+        if (event.target.files.length === 0) return;
+        addFiles(event.target.files);
+        event.target.value = ''; 
+    });
+    
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        uploadArea.firstElementChild.classList.add('border-blue-500', 'bg-blue-50');
+    });
+    uploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        uploadArea.firstElementChild.classList.remove('border-blue-500', 'bg-blue-50');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        uploadArea.firstElementChild.classList.remove('border-blue-500', 'bg-blue-50');
+        addFiles(e.dataTransfer.files);
+    });
+
+    function updateFileList() {
+        fileList.innerHTML = ''; 
+        if (uploadedFiles.length > 0) {
+            fileListContainer.classList.remove('hidden');
+            mergeBtn.disabled = false;
+        } else {
+            fileListContainer.classList.add('hidden');
+            mergeBtn.disabled = true;
+        }
+        uploadedFiles.forEach((file, index) => {
+            const li = document.createElement('li');
+            li.className = 'file-list-item flex items-center justify-between p-3 bg-gray-100 rounded-md';
+            li.innerHTML = `<div class="flex items-center overflow-hidden mr-2"><span class="font-medium text-sm truncate">${file.name}</span></div><div class="flex items-center flex-shrink-0"><span class="text-xs text-gray-500 mr-4">${(file.size / 1024 / 1024).toFixed(2)} MB</span><button class="remove-file-btn text-red-500 hover:text-red-700" data-index="${index}"><svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div>`;
+            fileList.appendChild(li);
+        });
+        downloadContainer.classList.add('hidden');
+    }
+
+    fileList.addEventListener('click', (event) => {
+        const removeBtn = event.target.closest('.remove-file-btn');
+        if (removeBtn) {
+            const indexToRemove = parseInt(removeBtn.dataset.index, 10);
+            uploadedFiles.splice(indexToRemove, 1);
+            updateFileList();
+        }
+    });
+
+    clearAllBtn.addEventListener('click', () => {
+        uploadedFiles = [];
+        updateFileList();
+    });
+    
+    function drawTOCHeaders(page, fonts, dimensions, layout) {
+        const { boldFont } = fonts;
+        const { width, topMargin } = dimensions;
+        const { SNO_COL, FILENAME_COL, PAGENO_COL } = layout;
+        let y = topMargin;
+
+        page.drawText('Table of Contents', { x: 50, y, font: boldFont, size: 24, color: rgb(0, 0, 0) });
+        y -= 50;
+        
+        const snoHeaderText = 'S.No.';
+        const snoHeaderWidth = boldFont.widthOfTextAtSize(snoHeaderText, 12);
+        page.drawText(snoHeaderText, { x: SNO_COL.X + (SNO_COL.WIDTH / 2) - (snoHeaderWidth / 2), y, font: boldFont, size: 12 });
+        page.drawText('File Name', { x: FILENAME_COL.X, y, font: boldFont, size: 12 });
+        const pageNoHeaderText = 'Page No.';
+        const pageNoHeaderWidth = boldFont.widthOfTextAtSize(pageNoHeaderText, 12);
+        page.drawText(pageNoHeaderText, { x: PAGENO_COL.X + (PAGENO_COL.WIDTH / 2) - (pageNoHeaderWidth / 2), y, font: boldFont, size: 12 });
+
+        y -= 10;
+        page.drawLine({ start: { x: 55, y: y }, end: { x: width - 55, y: y }, thickness: 1, color: rgb(0.8, 0.8, 0.8), });
+        y -= 20; 
+        return y;
+    }
+
+    mergeBtn.addEventListener('click', async () => {
+        if (uploadedFiles.length === 0) {
+            statusDiv.textContent = 'Please add one or more PDF files.';
+            return;
+        }
+
+        statusDiv.innerHTML = '<div class="flex items-center justify-center"><div class="loader w-6 h-6 border-4 rounded-full"></div><span class="ml-3">Processing... please wait.</span></div>';
+        mergeBtn.disabled = true;
+        downloadContainer.classList.add('hidden');
+
+        try {
+            const mergedPdf = await PDFDocument.create();
+            const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
+            const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
+            
+            // --- Cover Page Logic ---
+            const coverTitle = coverTitleInput.value;
+            const coverAuthor = coverAuthorInput.value;
+            const descriptionDetails = Array.from(document.querySelectorAll('.description-detail-input')).map(input => input.value).filter(Boolean);
+            const coverImageFile = coverImageInput.files[0];
+            const includeDate = includeDateCheckbox.checked;
+            let hasCoverPage = coverTitle || coverAuthor || descriptionDetails.length > 0 || coverImageFile || includeDate;
+            
+            if (hasCoverPage) {
+                const coverPage = mergedPdf.addPage();
+                const { width, height } = coverPage.getSize();
+                let y = height - 70;
+
+                if (coverImageFile) {
+                    const imgBytes = await coverImageFile.arrayBuffer();
+                    const image = await (coverImageFile.type === 'image/png' ? mergedPdf.embedPng(imgBytes) : mergedPdf.embedJpg(imgBytes));
+                    const imgDims = image.scale(0.25);
+                    coverPage.drawImage(image, {
+                        x: width / 2 - imgDims.width / 2,
+                        y: y - imgDims.height,
+                        width: imgDims.width,
+                        height: imgDims.height,
+                    });
+                    y -= (imgDims.height + 40);
+                }
+                
+                if (coverTitle) {
+                    const titleWidth = boldFont.widthOfTextAtSize(coverTitle, 36);
+                    coverPage.drawText(coverTitle, { x: width/2 - titleWidth/2, y, font: boldFont, size: 36 });
+                    y -= 60;
+                }
+
+                if (descriptionDetails.length > 0) {
+                    descriptionDetails.forEach(detail => {
+                         const detailWidth = font.widthOfTextAtSize(detail, 14);
+                         coverPage.drawText(detail, { x: width/2 - detailWidth/2, y, font, size: 14, color: rgb(0.3, 0.3, 0.3) });
+                         y -= 25;
+                    });
+                    y -= 20;
+                }
+                
+                if (coverAuthor) {
+                    const authorWidth = font.widthOfTextAtSize(coverAuthor, 18);
+                    coverPage.drawText(coverAuthor, { x: width/2 - authorWidth/2, y, font, size: 18, color: rgb(0.1, 0.1, 0.1) });
+                }
+
+                if (includeDate) {
+                    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                    const dateWidth = font.widthOfTextAtSize(dateStr, 12);
+                    coverPage.drawText(dateStr, { x: width/2 - dateWidth/2, y: 80, font, size: 12, color: rgb(0.5, 0.5, 0.5) });
+                }
+            }
+
+            // --- Content Merging ---
+            const tocEntries = [];
+            let contentStartPageIndex = 0;
+            for (const [index, file] of uploadedFiles.entries()) {
+                statusDiv.innerHTML = `<div class="flex items-center justify-center"><div class="loader w-6 h-6 border-4 rounded-full"></div><span class="ml-3">Reading file ${index + 1}/${uploadedFiles.length}</span></div>`;
+                tocEntries.push({ name: file.name, targetPageIndex: contentStartPageIndex });
+                const arrayBuffer = await file.arrayBuffer();
+                const donorPdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                const copiedPages = await mergedPdf.copyPages(donorPdf, donorPdf.getPageIndices());
+                copiedPages.forEach(page => mergedPdf.addPage(page));
+                contentStartPageIndex += donorPdf.getPageCount();
+            }
+
+            // --- TOC Calculation and Creation ---
+            const A4_SIZE = { width: 595.28, height: 841.89 };
+            const TOP_MARGIN = A4_SIZE.height - 70;
+            const BOTTOM_MARGIN = 50;
+            const LINE_HEIGHT = 25;
+            const HEADER_SPACE = 105;
+            const ENTRIES_PER_PAGE = Math.floor((TOP_MARGIN - HEADER_SPACE - BOTTOM_MARGIN) / LINE_HEIGHT);
+            const numTocPages = Math.ceil(tocEntries.length / ENTRIES_PER_PAGE);
+            const tocInsertionIndex = hasCoverPage ? 1 : 0;
+
+            statusDiv.innerHTML = '<div class="flex items-center justify-center"><div class="loader w-6 h-6 border-4 rounded-full"></div><span class="ml-3">Creating index pages...</span></div>';
+            for (let i = 0; i < numTocPages; i++) {
+                mergedPdf.insertPage(tocInsertionIndex + i, [A4_SIZE.width, A4_SIZE.height]);
+            }
+            
+            // --- Navigation and TOC Finalization ---
+            const firstTocPageRef = mergedPdf.getPage(tocInsertionIndex).ref;
+            const contentStartIndexAfterTOC = tocInsertionIndex + numTocPages;
+            for (let i = contentStartIndexAfterTOC; i < mergedPdf.getPageCount(); i++) {
+                const page = mergedPdf.getPage(i);
+                const { width } = page.getSize();
+                page.node.addAnnot(mergedPdf.context.obj({
+                    Type: 'Annot', Subtype: 'Link', Rect: [width - 60, 10, width - 10, 60], Border: [0, 0, 0], A: { Type: 'Action', S: 'GoTo', D: [firstTocPageRef, 'Fit'] },
+                }));
+            }
+
+            const TOC_LAYOUT = { SNO_COL: { X: 55,  WIDTH: 55 }, FILENAME_COL: { X: 115 }, PAGENO_COL: { X: A4_SIZE.width - 125, WIDTH: 70 } };
+            for (let tocPageIndex = 0; tocPageIndex < numTocPages; tocPageIndex++) {
+                const tocPage = mergedPdf.getPage(tocInsertionIndex + tocPageIndex);
+                let y = drawTOCHeaders(tocPage, { font, boldFont }, { width: A4_SIZE.width, topMargin: A4_SIZE.height - 70 }, TOC_LAYOUT);
+                
+                const startIndex = tocPageIndex * ENTRIES_PER_PAGE;
+                const entriesForThisPage = tocEntries.slice(startIndex, Math.min(startIndex + ENTRIES_PER_PAGE, tocEntries.length));
+
+                for (const [itemIndex, entry] of entriesForThisPage.entries()) {
+                    const pageNum = contentStartIndexAfterTOC + entry.targetPageIndex + 1;
+                    const targetPage = mergedPdf.getPage(pageNum - 1);
+                    const serialNum = startIndex + itemIndex + 1;
+
+                    const snoText = `${serialNum}.`;
+                    tocPage.drawText(snoText, { x: TOC_LAYOUT.SNO_COL.X + (TOC_LAYOUT.SNO_COL.WIDTH / 2) - (font.widthOfTextAtSize(snoText, 11) / 2), y, font, size: 11, color: rgb(0.2, 0.2, 0.2) });
+                    
+                    let truncatedText = entry.name;
+                    const maxTextWidth = (A4_SIZE.width - 250);
+                    if (font.widthOfTextAtSize(truncatedText, 12) > maxTextWidth) {
+                        truncatedText = truncatedText.substring(0, Math.floor(maxTextWidth / font.widthOfTextAtSize('a', 12))) + '...';
+                    }
+                    tocPage.drawText(truncatedText, { x: TOC_LAYOUT.FILENAME_COL.X, y, font, size: 12, color: rgb(0, 0.4, 0.8) });
+                    
+                    const pageNoText = `${pageNum}`;
+                    tocPage.drawText(pageNoText, { x: TOC_LAYOUT.PAGENO_COL.X + (TOC_LAYOUT.PAGENO_COL.WIDTH / 2) - (font.widthOfTextAtSize(pageNoText, 12) / 2), y, font, size: 12, color: rgb(0.2, 0.2, 0.2) });
+
+                    tocPage.node.addAnnot(mergedPdf.context.obj({
+                        Type: 'Annot', Subtype: 'Link', Rect: [TOC_LAYOUT.FILENAME_COL.X, y - 2, TOC_LAYOUT.FILENAME_COL.X + maxTextWidth, y + 12], Border: [0, 0, 0], A: { Type: 'Action', S: 'GoTo', D: [targetPage.ref, 'Fit'] },
+                    }));
+                    y -= LINE_HEIGHT;
+                }
+            }
+
+            const pdfBytes = await mergedPdf.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            downloadLink.href = url;
+            downloadContainer.classList.remove('hidden');
+            statusDiv.textContent = '✅ Your merged PDF is ready!';
+            mergeBtn.disabled = false;
+        } catch (error) {
+            console.error(error);
+            statusDiv.textContent = `An error occurred: ${error.message}`;
+            mergeBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
