@@ -285,6 +285,26 @@
         return y;
     }
 
+    // --- NEW FUNCTION for wrapping text ---
+    function wrapText(text, font, fontSize, maxWidth) {
+        const words = text.split(' ');
+        let lines = [];
+        let currentLine = words.shift();
+
+        for (const word of words) {
+            const testLine = `${currentLine} ${word}`;
+            const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+            if (testWidth > maxWidth) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+        lines.push(currentLine);
+        return lines;
+    }
+
     mergeBtn.addEventListener('click', async () => {
         if (uploadedFiles.length === 0) {
             statusDiv.textContent = 'Please add one or more PDF files.';
@@ -300,7 +320,6 @@
             const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
             const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
             
-            // --- Cover Page Logic ---
             const coverTitle = coverTitleInput.value;
             const coverAuthor = coverAuthorInput.value;
             const descriptionDetails = Array.from(document.querySelectorAll('.description-detail-input')).map(input => input.value).filter(Boolean);
@@ -311,9 +330,8 @@
             if (hasCoverPage) {
                 const coverPage = mergedPdf.addPage();
                 const { width, height } = coverPage.getSize();
-                // --- MODIFIED LINE ---
-                // Changed from 70 to 40 to reduce the top margin
                 let y = height - 40;
+                const maxWidth = width - 100; // Max width for text with 50pt margins
 
                 if (coverImageFile) {
                     const imgBytes = await coverImageFile.arrayBuffer();
@@ -332,24 +350,39 @@
                     y -= (scaledDims.height + 40);
                 }
                 
+                // --- MODIFIED Title Drawing Logic ---
                 if (coverTitle) {
-                    const titleWidth = boldFont.widthOfTextAtSize(coverTitle, 36);
-                    coverPage.drawText(coverTitle, { x: width/2 - titleWidth/2, y, font: boldFont, size: 36 });
-                    y -= 60;
+                    const titleLines = wrapText(coverTitle, boldFont, 36, maxWidth);
+                    titleLines.forEach(line => {
+                        const lineWidth = boldFont.widthOfTextAtSize(line, 36);
+                        coverPage.drawText(line, { x: width / 2 - lineWidth / 2, y, font: boldFont, size: 36 });
+                        y -= 42; // Line height
+                    });
+                    y -= 18; // Extra spacing after title block
                 }
 
+                // --- MODIFIED Description Drawing Logic ---
                 if (descriptionDetails.length > 0) {
                     descriptionDetails.forEach(detail => {
-                         const detailWidth = font.widthOfTextAtSize(detail, 14);
-                         coverPage.drawText(detail, { x: width/2 - detailWidth/2, y, font, size: 14, color: rgb(0.3, 0.3, 0.3) });
-                         y -= 25;
+                        const detailLines = wrapText(detail, font, 14, maxWidth);
+                        detailLines.forEach(line => {
+                            const lineWidth = font.widthOfTextAtSize(line, 14);
+                            coverPage.drawText(line, { x: width / 2 - lineWidth / 2, y, font, size: 14, color: rgb(0.3, 0.3, 0.3) });
+                            y -= 18; // Line height
+                        });
+                        y -= 7; // Spacing between detail items
                     });
                     y -= 20;
                 }
                 
+                // --- MODIFIED Author Drawing Logic ---
                 if (coverAuthor) {
-                    const authorWidth = font.widthOfTextAtSize(coverAuthor, 18);
-                    coverPage.drawText(coverAuthor, { x: width/2 - authorWidth/2, y, font, size: 18, color: rgb(0.1, 0.1, 0.1) });
+                    const authorLines = wrapText(coverAuthor, font, 18, maxWidth);
+                    authorLines.forEach(line => {
+                        const lineWidth = font.widthOfTextAtSize(line, 18);
+                        coverPage.drawText(line, { x: width / 2 - lineWidth / 2, y, font, size: 18, color: rgb(0.1, 0.1, 0.1) });
+                        y -= 22; // Line height
+                    });
                 }
 
                 if (includeDate) {
@@ -387,7 +420,6 @@
                 mergedPdf.insertPage(tocInsertionIndex + i, [A4_SIZE.width, A4_SIZE.height]);
             }
             
-            // --- Navigation and TOC Finalization ---
             const firstTocPageRef = mergedPdf.getPage(tocInsertionIndex).ref;
             const contentStartIndexAfterTOC = tocInsertionIndex + numTocPages;
             for (let i = contentStartIndexAfterTOC; i < mergedPdf.getPageCount(); i++) {
